@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import { defineOrderProvider } from './order-provider.js';
 
 export class KuaimaiError extends Error {
   constructor(message, kind = 'unavailable', details = {}) {
@@ -85,6 +86,19 @@ export function computeSignature(parameters, secret, signMethod = 'md5') {
   if (signMethod === 'hmac') return createHmac('md5', secret).update(canonical, 'utf8').digest('hex');
   if (signMethod === 'hmac-sha256') return createHmac('sha256', secret).update(canonical, 'utf8').digest('hex');
   return createHash('md5').update(`${secret}${canonical}${secret}`, 'utf8').digest('hex');
+}
+
+// 将快麦客户端包装为 OrderLookupProvider，供适配器核心使用。
+export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp') {
+  const client = new KuaimaiClient(options);
+  return defineOrderProvider({
+    name: 'kuaimai',
+    providerId,
+    capabilities: ['order.lookup', 'refund.lookup'],
+    async lookup(trackingNumber, { signal } = {}) {
+      return client.lookup(trackingNumber, signal);
+    }
+  });
 }
 
 export function mapTradeList(payload, trackingNumber) {

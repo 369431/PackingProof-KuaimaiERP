@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import test from 'node:test';
-import { computeSignature, KuaimaiClient, KuaimaiError, mapTradeList } from '../src/kuaimai.js';
+import { computeSignature, KuaimaiClient, KuaimaiError, mapTradeList } from '../src/providers/kuaimai.js';
 
 const parameters = { method: 'erp.trade.list.query', appKey: 'key', outSids: 'YT1' };
 const canonical = 'appKeykeymethoderp.trade.list.queryoutSidsYT1';

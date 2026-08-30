@@ -1,7 +1,7 @@
 {
   "name": "packingproof-kuaimai-erp",
   "version": "1.0.0",
-  "description": "通过 PackingProof 扩展 API 接入快麦 ERP 的独立适配器",
+  "description": "通过 PackingProof 扩展 API 接入快麦 ERP 的独立适配器（PPEXT external-adapter payload）",
   "license": "AGPL-3.0-only",
   "repository": "https://github.com/369431/PackingProof-KuaimaiERP",
   "type": "module",

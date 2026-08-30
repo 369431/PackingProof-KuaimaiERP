@@ -37,6 +37,8 @@ export function getConfig() {
 
   return {
     packingProofUrl: (process.env.PACKINGPROOF_URL || 'http://127.0.0.1:5280').replace(/\/$/, ''),
+    provider: (process.env.ERP_PROVIDER || 'kuaimai').trim().toLowerCase(),
+    extensionInstanceId: process.env.PACKINGPROOF_EXTENSION_INSTANCE_ID?.trim() || '',
     kuaimai: {
       appKey,
       appSecret,

@@ -2,7 +2,7 @@
 
 把 PackingProof Desktop 的扫码任务接入快麦 ERP。仓库人员扫描快递单号后，适配器自动查询快麦订单，并把商家编码、商品件数、买卖家备注和退款状态安全回传给 PackingProof。
 
-本项目参考 [PackingProof-QQBot](https://github.com/PackingProof/PackingProof-QQBot) 的独立扩展方式，只通过 PackingProof 扩展 API v1 通信，不读取数据库、配置文件或录像目录。
+本仓库是遵循 [PackingProof 扩展市场协议 v1](https://github.com/PackingProof/PackingProof-Extensions/blob/main/docs/PROTOCOL_V1.md) 的扩展项目：`payload/` 是可运行的独立适配器，`manifest.json` 描述安装包，`submission.json` 记录市场投稿信息。本项目只通过 PackingProof 扩展 API v1 通信，不读取数据库、配置文件或录像目录。
 
 ## 已实现功能
 
@@ -23,13 +23,19 @@
 - 查询结果稍晚返回或录像停止后，桌面端仍可继续接收和显示
 - 使用签名扩展凭据，不向适配器暴露 PackingProof 数据库和录像路径
 
-## 快速开始
+## 安装（PackingProof 扩展）
+
+1. 在 GitHub Release 下载 `369431.kuaimai-erp-1.0.0.ppext`，或从 [PackingProof 扩展市场](https://github.com/PackingProof/PackingProof-Extensions) 安装
+2. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
+3. 导入并安装扩展；外部适配器需要手动启动（`payload/start.cmd`）
+4. 首次运行时，在 PackingProof 弹出的授权窗口中批准适配器
+
+## 手动运行（开发模式）
 
 要求 Node.js 20 或更高版本，以及支持扩展 API v1 的 PackingProof Desktop。
 
-1. 下载本仓库
-2. 复制 `.env.example` 为 `.env`
-3. 填写快麦开放平台 API 信息：
+1. 进入 `payload/` 目录
+2. 复制 `.env.example` 为 `.env`，填写快麦开放平台 API 信息：
 
    ```env
    PACKINGPROOF_URL=http://127.0.0.1:5280
@@ -41,11 +47,16 @@
    KUAIMAI_SIGN_METHOD=md5
    ```
 
-4. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
-5. 在本目录运行 `npm start`
-6. 首次运行时，在 PackingProof 弹出的授权窗口中批准适配器
+3. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
+4. 在 `payload/` 目录运行 `npm start`
+5. 首次运行时，在 PackingProof 弹出的授权窗口中批准适配器
 
 项目没有第三方 npm 依赖，填写 API 后即可运行。授权完成后保持适配器运行，PackingProof 扫码时会自动查询快麦。
+
+## 扩展性
+
+适配器核心（`payload/src/adapter-core.js`）与 ERP 平台解耦，通过 `ERP_PROVIDER` 环境变量选择提供方。
+新增平台时在 `payload/src/providers/` 实现 [OrderLookupProvider 契约](payload/src/providers/order-provider.js) 并登记到 `payload/src/index.js` 即可，无需修改适配器核心。
 
 ## 安全说明
 
@@ -62,6 +73,7 @@
 运行测试：
 
 ```bash
+cd payload
 npm test
 ```
 
