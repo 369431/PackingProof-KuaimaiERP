@@ -106,7 +106,8 @@ export function mapTradeList(payload, trackingNumber) {
   if (!trade) return null;
   const items = Array.isArray(trade.orders) ? trade.orders : [];
   const products = items.map(mapProduct).filter(Boolean);
-  const rawRefundStatus = firstString(trade, ['refund_status', 'refundStatus', 'status'])
+  // 注意：trade 级不能把 status 当退款状态（真实接口里 status 是发货状态，如 fxg_3）
+  const rawRefundStatus = firstString(trade, ['refund_status', 'refundStatus'])
     || firstString(items.find(item => firstString(item, ['refund_status', 'refundStatus'])), ['refund_status', 'refundStatus']);
   const refundState = mapRefundState(trade, items, rawRefundStatus);
 
@@ -135,20 +136,34 @@ function mapProduct(item) {
   };
 }
 
+const RefundStatusValues = new Set([
+  'WAIT_SELLER_AGREE', 'REQUESTED',
+  'WAIT_BUYER_RETURN_GOODS', 'WAIT_SELLER_CONFIRM_GOODS', 'PROCESSING',
+  'RETURNED',
+  'CLOSED', 'REJECTED',
+  'SUCCESS', 'REFUNDED'
+]);
+const NoRefundValues = new Set(['0', 'FALSE', 'NO_REFUND', 'NONE']);
+
 function mapRefundState(trade, items, rawStatus) {
   const normalized = String(rawStatus || '').trim().toUpperCase();
-  if (!truthyRefund(trade?.isRefund) && !truthyRefund(trade?.isHalt)
-      && (!normalized || ['0', 'FALSE', 'NO_REFUND', 'NONE'].includes(normalized))) return 'none';
-  if (['WAIT_SELLER_AGREE', 'REQUESTED'].includes(normalized)) return 'requested';
-  if (['WAIT_BUYER_RETURN_GOODS', 'WAIT_SELLER_CONFIRM_GOODS', 'PROCESSING'].includes(normalized)) return 'processing';
-  if (['RETURNED'].includes(normalized)) return 'returned';
-  if (['CLOSED', 'REJECTED'].includes(normalized)) return 'rejected';
-  if (['SUCCESS', 'REFUNDED'].includes(normalized)) return 'refunded';
-  const itemHasRefund = items.some(item => {
-    const status = firstString(item, ['refund_status', 'refundStatus']).toUpperCase();
-    return status && !['0', 'FALSE', 'NO_REFUND', 'NONE'].includes(status);
-  });
-  return truthyRefund(trade?.isRefund) || truthyRefund(trade?.isHalt) || itemHasRefund ? 'refunded' : 'none';
+  // 商品条目级 refundStatus 是权威的退款状态；trade 级 status 是发货状态，不能参与判定
+  const itemStatus = items
+    .map(item => String(firstString(item, ['refund_status', 'refundStatus']) || '').trim().toUpperCase())
+    .find(status => status && !NoRefundValues.has(status));
+  const effective = itemStatus || (RefundStatusValues.has(normalized) ? normalized : '');
+  const hasRefundSignal = truthyRefund(trade?.isRefund)
+    || truthyRefund(trade?.isHalt)
+    || effective.length > 0;
+
+  if (!hasRefundSignal) return 'none';
+  if (['WAIT_SELLER_AGREE', 'REQUESTED'].includes(effective)) return 'requested';
+  if (['WAIT_BUYER_RETURN_GOODS', 'WAIT_SELLER_CONFIRM_GOODS', 'PROCESSING'].includes(effective)) return 'processing';
+  if (['RETURNED'].includes(effective)) return 'returned';
+  if (['CLOSED', 'REJECTED'].includes(effective)) return 'rejected';
+  if (['SUCCESS', 'REFUNDED'].includes(effective)) return 'refunded';
+  // 有退款标记但状态未知：isHalt 表示已拦截，按已退款处理；否则按申请中，避免误报已退款
+  return truthyRefund(trade?.isHalt) ? 'refunded' : 'requested';
 }
 
 function truthyRefund(value) {
