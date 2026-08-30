@@ -45,7 +45,9 @@ export function getConfig() {
       session,
       refreshToken: readValue('KUAIMAI_REFRESH_TOKEN', 'refreshToken'),
       gateway: process.env.KUAIMAI_GATEWAY?.trim() || 'https://gw.superboss.cc/router',
-      signMethod
+      signMethod,
+      // 兼容上游桌面端原生退款警报：默认 true；设 0 切回增强模式（无警报，备注播报）
+      refundCompat: process.env.KUAIMAI_REFUND_COMPAT !== '0'
     }
   };
 }

@@ -42,7 +42,7 @@ export class KuaimaiClient {
       pageNo: '1',
       pageSize: '20'
     }, signal);
-    return mapTradeList(payload, normalized);
+    return mapTradeList(payload, normalized, { refundCompat: this.options.refundCompat !== false });
   }
 
   async call(method, businessParameters, signal) {
@@ -89,6 +89,9 @@ export function computeSignature(parameters, secret, signMethod = 'md5') {
 }
 
 // 将快麦客户端包装为 OrderLookupProvider，供适配器核心使用。
+// refundCompat=true（默认）：已知退款状态提交真实状态，触发桌面端原生“打印后退款”
+//   警报播报（兼容未修改的上游桌面端）；false：统一提交 none/unknown，退款信息
+//   改走卖家备注播报（配合桌面端增强播放，无警报）。
 export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp') {
   const client = new KuaimaiClient(options);
   return defineOrderProvider({
@@ -102,7 +105,7 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
   });
 }
 
-export function mapTradeList(payload, trackingNumber) {
+export function mapTradeList(payload, trackingNumber, { refundCompat = true } = {}) {
   const trade = Array.isArray(payload?.list) ? payload.list[0] : null;
   if (!trade) return null;
   const items = Array.isArray(trade.orders) ? trade.orders : [];
@@ -111,9 +114,8 @@ export function mapTradeList(payload, trackingNumber) {
   const rawRefundStatus = firstString(trade, ['refund_status', 'refundStatus'])
     || firstString(items.find(item => firstString(item, ['refund_status', 'refundStatus'])), ['refund_status', 'refundStatus']);
   const refundState = mapRefundState(trade, items, rawRefundStatus);
-  // 退款信息改走卖家备注播报通道：桌面端对非 none/unknown 的退款状态会跳过
-  // “订单 N 件”播报，因此这里统一提交 none/unknown，并用备注携带退款提示，
-  // 保证件数一定播报、退款状态也一定播报
+  // 退款信息通过卖家备注携带中文播报文案；
+  // compat 模式：已知状态提交真实状态（触发桌面端原生退款警报），增强模式提交 none
   let sellerMemo = firstString(trade, ['seller_memo', 'seller_remark'])
     || firstString(items[0], ['seller_memo', 'seller_remark']) || '';
   let submittedRefundState = refundState;
@@ -121,7 +123,7 @@ export function mapTradeList(payload, trackingNumber) {
     submittedRefundState = 'unknown';
     sellerMemo = appendMemo(sellerMemo, '订单退款状态未知，请核实后再发');
   } else if (refundState !== 'none') {
-    submittedRefundState = 'none';
+    submittedRefundState = refundCompat ? refundState : 'none';
     sellerMemo = appendMemo(sellerMemo, RefundStateDisplay[refundState] || `退款状态：${refundState}`);
   }
 

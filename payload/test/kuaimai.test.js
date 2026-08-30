@@ -26,15 +26,23 @@ test('映射商品数量、退款和过滤包装 SKU', () => {
   assert.equal(order.sellerMemo, '订单退款状态未知，请核实后再发');
 });
 
-test('优先使用快麦商家编码，已知退款状态改为备注播报', () => {
+test('优先使用快麦商家编码，已知退款状态提交真实状态（兼容上游）', () => {
   const order = mapTradeList({ list: [{ tid: 'T2', isRefund: 1, orders: [
     { outerSkuId: '7255-女款', title: '很长的商品标题', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT2');
   assert.equal(order.products[0].name, '7255-女款');
-  // 已知状态：提交 none（不阻塞件数播报）+ 备注播报中文状态
-  assert.equal(order.refundState, 'none');
+  // 兼容模式（默认）：已知状态提交真实状态，触发上游原生退款警报；备注保留中文文案
+  assert.equal(order.refundState, 'requested');
   assert.equal(order.sellerMemo, '订单申请退款中');
   assert.equal(order.refundReason, 'WAIT_SELLER_AGREE');
+});
+
+test('增强模式（refundCompat=false）已知退款提交 none 并带备注文案', () => {
+  const order = mapTradeList({ list: [{ tid: 'T2B', isRefund: 1, orders: [
+    { outerSkuId: '7255-女款', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
+  ] }] }, 'YT2B', { refundCompat: false });
+  assert.equal(order.refundState, 'none');
+  assert.equal(order.sellerMemo, '订单申请退款中');
 });
 
 test('trade 级 status 是发货状态，不得误判为退款状态', () => {
@@ -42,7 +50,7 @@ test('trade 级 status 是发货状态，不得误判为退款状态', () => {
   const order = mapTradeList({ list: [{ tid: 'T3', isRefund: 1, status: 'fxg_3', orders: [
     { outerSkuId: '9672-灰色S', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT3');
-  assert.equal(order.refundState, 'none');
+  assert.equal(order.refundState, 'requested');
   assert.equal(order.sellerMemo, '订单申请退款中');
 });
 
