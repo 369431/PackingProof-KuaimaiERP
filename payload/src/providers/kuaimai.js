@@ -119,10 +119,10 @@ export function mapTradeList(payload, trackingNumber) {
   let submittedRefundState = refundState;
   if (refundState === 'unknown') {
     submittedRefundState = 'unknown';
-    sellerMemo = appendMemo(sellerMemo, '退款状态未知，请核实后再发');
+    sellerMemo = appendMemo(sellerMemo, '订单退款状态未知，请核实后再发');
   } else if (refundState !== 'none') {
     submittedRefundState = 'none';
-    sellerMemo = appendMemo(sellerMemo, `退款状态：${RefundStateDisplay[refundState] || refundState}`);
+    sellerMemo = appendMemo(sellerMemo, RefundStateDisplay[refundState] || `退款状态：${refundState}`);
   }
 
   return {
@@ -138,11 +138,11 @@ export function mapTradeList(payload, trackingNumber) {
 }
 
 const RefundStateDisplay = {
-  requested: '申请中',
-  processing: '处理中',
-  refunded: '已退款',
-  returned: '已退货',
-  rejected: '已拒绝'
+  requested: '订单申请退款中',
+  processing: '订单退款处理中',
+  refunded: '订单已退款',
+  returned: '订单已退货',
+  rejected: '订单退款已拒绝'
 };
 
 function appendMemo(existing, warning) {
