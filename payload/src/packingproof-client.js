@@ -139,6 +139,16 @@ export class PackingProofExtensionClient {
     return this.signedRequest('POST', '/api/extensions/v1/scan-results', result);
   }
 
+  // 推送到软件的订单缓存（orders.write 权限）：让软件原生“打印后退款”
+  // 警报机制能读到扩展查询到的订单，从而走软件自己的播放渠道播报
+  pushOrders(providerId, orders) {
+    return this.signedRequest('POST', '/api/extensions/v1/orders', {
+      apiVersion: 'v1',
+      providerId,
+      orders
+    });
+  }
+
   createRecordingQuery(trackingNumber) {
     return this.signedRequest('POST', '/api/extensions/v1/recording-queries', { trackingNumber });
   }

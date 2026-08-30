@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import test from 'node:test';
-import { computeSignature, KuaimaiClient, KuaimaiError, mapTradeList } from '../src/providers/kuaimai.js';
+import { computeSignature, KuaimaiClient, KuaimaiError, mapTradeList, createKuaimaiProvider } from '../src/providers/kuaimai.js';
 
 const parameters = { method: 'erp.trade.list.query', appKey: 'key', outSids: 'YT1' };
 const canonical = 'appKeykeymethoderp.trade.list.queryoutSidsYT1';
@@ -64,6 +64,43 @@ test('发货状态 fxg_1 且无退款标记时返回无退款', () => {
 
 test('空列表返回未找到', () => {
   assert.equal(mapTradeList({ list: [] }, 'YT1'), null);
+});
+
+test('createKuaimaiProvider.pushNativeOrder 退款订单生成原生推送（含件数备注）', () => {
+  const provider = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't' });
+  const order = {
+    trackingNumber: 'YT1',
+    orderId: 'T1',
+    totalItemCount: 3,
+    buyerMessage: '',
+    sellerMemo: '订单申请退款中',
+    refundState: 'requested',
+    refundReason: 'WAIT_SELLER_AGREE',
+    products: [{ name: '9672-灰色S', quantity: 1 }, { name: '7268-橘色M', quantity: 2 }]
+  };
+  const push = provider.pushNativeOrder(order);
+  assert.equal(push.isPrintedRefund, true);
+  assert.equal(push.refundStatus, 'WAIT_SELLER_AGREE');
+  assert.equal(push.sellerMemo, '订单申请退款中，共 3 件商品');
+  assert.equal(push.productInfo, '9672-灰色S\n7268-橘色M ×2');
+  assert.equal(push.totalItemCount, 3);
+});
+
+test('createKuaimaiProvider.pushNativeOrder 无退款或增强模式不推送', () => {
+  const provider = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't' });
+  const enhanced = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't', refundCompat: false });
+  const order = {
+    trackingNumber: 'YT1',
+    orderId: 'T1',
+    totalItemCount: 1,
+    sellerMemo: '',
+    refundState: 'requested',
+    refundReason: 'WAIT_SELLER_AGREE',
+    products: [{ name: 'A', quantity: 1 }]
+  };
+  const noRefund = { ...order, refundState: 'none' };
+  assert.equal(provider.pushNativeOrder(noRefund), null);
+  assert.equal(enhanced.pushNativeOrder(order), null);
 });
 
 test('鉴权错误分类为需要更新快麦凭据', async () => {

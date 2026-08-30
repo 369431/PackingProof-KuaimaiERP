@@ -94,6 +94,7 @@ export function computeSignature(parameters, secret, signMethod = 'md5') {
 //   改走卖家备注播报（配合桌面端增强播放，无警报）。
 export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp') {
   const client = new KuaimaiClient(options);
+  const refundCompat = options.refundCompat !== false;
   return defineOrderProvider({
     name: 'kuaimai',
     providerId,
@@ -101,6 +102,29 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
     notFoundMessage: '单号不在系统中，请核实后再发',
     async lookup(trackingNumber, { signal } = {}) {
       return client.lookup(trackingNumber, signal);
+    },
+    // 兼容上游模式：把已知退款订单转成软件原生订单推送格式（触发原生警报播报）
+    pushNativeOrder(order) {
+      if (!refundCompat) return null;
+      const refundSignal = ['requested', 'processing', 'refunded', 'returned'].includes(order.refundState);
+      if (!refundSignal) return null;
+      const productInfo = (order.products || [])
+        .map(product => product.quantity > 1 ? `${product.name} ×${product.quantity}` : product.name)
+        .join('\n');
+      return {
+        trackingNumber: order.trackingNumber,
+        orderId: order.orderId,
+        productInfo,
+        totalItemCount: order.totalItemCount || 0,
+        buyerMessage: order.buyerMessage || '',
+        // 件数并入备注，保证原生渠道也能播报到件数
+        sellerMemo: order.sellerMemo
+          ? `${order.sellerMemo}，共 ${order.totalItemCount} 件商品`
+          : `共 ${order.totalItemCount} 件商品`,
+        refundStatus: order.refundReason || '',
+        isPrintedRefund: true,
+        isTest: false
+      };
     }
   });
 }

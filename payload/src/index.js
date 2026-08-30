@@ -15,6 +15,8 @@ const providers = {
 const provider = providers[config.provider] || providers.kuaimai;
 
 const state = await loadState();
+// 权限版本 2：新增 orders.write（原生订单推送/播放渠道）。旧凭据缺少该权限时重新授权
+const needsReenroll = state.permissionVersion !== 2;
 const identity = {
   // 允许通过环境变量固定实例 ID（测试和工位绑定场景），否则沿用已持久化的实例 ID
   extensionInstanceId: config.extensionInstanceId
@@ -24,16 +26,19 @@ const identity = {
   displayName: 'PackingProof 快麦 ERP 适配器',
   version: '1.0.0',
   source: 'https://github.com/369431/PackingProof-KuaimaiERP',
-  requestedPermissions: ['scan-tasks.read', 'scan-results.write'],
+  requestedPermissions: ['scan-tasks.read', 'scan-results.write', 'orders.write'],
   requestedCapabilities: provider.capabilities
 };
-const packingProof = new PackingProofExtensionClient(config.packingProofUrl, identity, state.credentialState || null);
+const packingProof = new PackingProofExtensionClient(
+  config.packingProofUrl,
+  identity,
+  needsReenroll ? null : (state.credentialState || null));
 
-console.log(`快麦适配器已启动（provider=${provider.name}），正在等待扫码任务`);
+console.log(`快麦适配器已启动（provider=${provider.name}，orders.write=${needsReenroll ? '待授权' : '已授权'}），正在等待扫码任务`);
 await runScanTaskAdapter({
   client: packingProof,
   provider,
   identity,
   state,
-  saveState
+  saveState: async nextState => saveState({ ...nextState, permissionVersion: 2 })
 });

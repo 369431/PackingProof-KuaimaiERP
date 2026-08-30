@@ -50,6 +50,19 @@ export async function runScanTaskAdapter(options) {
       lastSuccessfulActivityAt = new Date().toISOString();
       if (result.status === 'found') dataCount += 1;
       console.log(`${delivery.trackingNumber}：${result.status}`);
+      // 走软件原生播放渠道：把退款订单推送到软件的订单缓存，触发原生警报播报
+      if (provider.pushNativeOrder && result.status === 'found' && result.orders.length > 0) {
+        try {
+          const pushOrders = result.orders
+            .map(order => provider.pushNativeOrder(order))
+            .filter(Boolean);
+          if (pushOrders.length > 0) {
+            await requireOk(client.pushOrders(provider.providerId, pushOrders), '推送订单到软件播放渠道');
+          }
+        } catch (error) {
+          console.error(`推送订单到软件播放渠道失败（需要 orders.write 权限，请重新授权）：${error.message}`);
+        }
+      }
       if (onResult) await onResult(result, delivery);
     } catch (error) {
       console.error(`处理任务失败：${error.message}`);
