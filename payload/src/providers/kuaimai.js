@@ -95,6 +95,7 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
     name: 'kuaimai',
     providerId,
     capabilities: ['order.lookup', 'refund.lookup'],
+    notFoundMessage: '单号不在系统中，请核实后再发',
     async lookup(trackingNumber, { signal } = {}) {
       return client.lookup(trackingNumber, signal);
     }
@@ -110,17 +111,43 @@ export function mapTradeList(payload, trackingNumber) {
   const rawRefundStatus = firstString(trade, ['refund_status', 'refundStatus'])
     || firstString(items.find(item => firstString(item, ['refund_status', 'refundStatus'])), ['refund_status', 'refundStatus']);
   const refundState = mapRefundState(trade, items, rawRefundStatus);
+  // 退款信息改走卖家备注播报通道：桌面端对非 none/unknown 的退款状态会跳过
+  // “订单 N 件”播报，因此这里统一提交 none/unknown，并用备注携带退款提示，
+  // 保证件数一定播报、退款状态也一定播报
+  let sellerMemo = firstString(trade, ['seller_memo', 'seller_remark'])
+    || firstString(items[0], ['seller_memo', 'seller_remark']) || '';
+  let submittedRefundState = refundState;
+  if (refundState === 'unknown') {
+    submittedRefundState = 'unknown';
+    sellerMemo = appendMemo(sellerMemo, '退款状态未知，请核实后再发');
+  } else if (refundState !== 'none') {
+    submittedRefundState = 'none';
+    sellerMemo = appendMemo(sellerMemo, `退款状态：${RefundStateDisplay[refundState] || refundState}`);
+  }
 
   return {
     trackingNumber,
     orderId: firstString(trade, ['tid', 'order_id', 'trade_id']) || firstString(items[0], ['tid']) || '',
     buyerMessage: firstString(trade, ['buyer_message', 'buyer_memo']) || firstString(items[0], ['buyer_message', 'buyer_memo']) || '',
-    sellerMemo: firstString(trade, ['seller_memo', 'seller_remark']) || firstString(items[0], ['seller_memo', 'seller_remark']) || '',
+    sellerMemo,
     totalItemCount: products.reduce((sum, product) => sum + product.quantity, 0),
     products,
-    refundState,
-    refundReason: refundState === 'none' ? '' : rawRefundStatus || '快麦订单显示退款状态'
+    refundState: submittedRefundState,
+    refundReason: submittedRefundState === 'none' && refundState === 'none' ? '' : rawRefundStatus || '快麦订单显示退款状态'
   };
+}
+
+const RefundStateDisplay = {
+  requested: '申请中',
+  processing: '处理中',
+  refunded: '已退款',
+  returned: '已退货',
+  rejected: '已拒绝'
+};
+
+function appendMemo(existing, warning) {
+  if (!existing) return warning;
+  return `${existing}；${warning}`;
 }
 
 function mapProduct(item) {
@@ -162,8 +189,9 @@ function mapRefundState(trade, items, rawStatus) {
   if (['RETURNED'].includes(effective)) return 'returned';
   if (['CLOSED', 'REJECTED'].includes(effective)) return 'rejected';
   if (['SUCCESS', 'REFUNDED'].includes(effective)) return 'refunded';
-  // 有退款标记但状态未知：isHalt 表示已拦截，按已退款处理；否则按申请中，避免误报已退款
-  return truthyRefund(trade?.isHalt) ? 'refunded' : 'requested';
+  // 有退款标记但状态未知：统一按 unknown 提交（合并时不会阻塞件数播报），
+  // 由 mapTradeList 通过卖家备注携带“退款状态未知，请核实后再发”提示
+  return 'unknown';
 }
 
 function truthyRefund(value) {

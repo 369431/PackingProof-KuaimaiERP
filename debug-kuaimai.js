@@ -1,8 +1,8 @@
 // 调试脚本：查询真实快麦订单并打印原始结构（脱敏）与映射结果
 // 用法：node debug-kuaimai.js <快递单号>
-import { loadEnvironment, getConfig } from './src/config.js';
-import { KuaimaiClient } from './src/providers/kuaimai.js';
-import { mapTradeList } from './src/providers/kuaimai.js';
+import { loadEnvironment, getConfig } from './payload/src/config.js';
+import { KuaimaiClient } from './payload/src/providers/kuaimai.js';
+import { mapTradeList } from './payload/src/providers/kuaimai.js';
 
 await loadEnvironment();
 const config = getConfig();

@@ -21,16 +21,19 @@ test('映射商品数量、退款和过滤包装 SKU', () => {
   assert.equal(order.totalItemCount, 2);
   assert.equal(order.products.length, 1);
   assert.equal(order.products[0].name, '7107-黑色M');
-  // 只有 isRefund 标记、无具体退款状态时按申请中处理，不误报已退款
-  assert.equal(order.refundState, 'requested');
+  // 只有 isRefund 标记、无具体退款状态：unknown + 备注播报“请核实后再发”
+  assert.equal(order.refundState, 'unknown');
+  assert.equal(order.sellerMemo, '退款状态未知，请核实后再发');
 });
 
-test('优先使用快麦商家编码并映射退款处理中状态', () => {
+test('优先使用快麦商家编码，已知退款状态改为备注播报', () => {
   const order = mapTradeList({ list: [{ tid: 'T2', isRefund: 1, orders: [
     { outerSkuId: '7255-女款', title: '很长的商品标题', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT2');
   assert.equal(order.products[0].name, '7255-女款');
-  assert.equal(order.refundState, 'requested');
+  // 已知状态：提交 none（不阻塞件数播报）+ 备注播报中文状态
+  assert.equal(order.refundState, 'none');
+  assert.equal(order.sellerMemo, '退款状态：申请中');
   assert.equal(order.refundReason, 'WAIT_SELLER_AGREE');
 });
 
@@ -39,8 +42,8 @@ test('trade 级 status 是发货状态，不得误判为退款状态', () => {
   const order = mapTradeList({ list: [{ tid: 'T3', isRefund: 1, status: 'fxg_3', orders: [
     { outerSkuId: '9672-灰色S', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT3');
-  assert.equal(order.refundState, 'requested');
-  assert.equal(order.refundReason, 'WAIT_SELLER_AGREE');
+  assert.equal(order.refundState, 'none');
+  assert.equal(order.sellerMemo, '退款状态：申请中');
 });
 
 test('发货状态 fxg_1 且无退款标记时返回无退款', () => {

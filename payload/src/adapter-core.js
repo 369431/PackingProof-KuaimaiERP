@@ -66,8 +66,26 @@ export async function createResult(delivery, provider, taskTimeoutMs = 12_000) {
     const timeout = setTimeout(() => controller.abort(), taskTimeoutMs);
     try {
       const order = await provider.lookup(delivery.trackingNumber, { signal: controller.signal });
-      if (order) orders = [order];
-      else status = 'not_found';
+      if (order) {
+        orders = [order];
+      } else if (delivery.capability === 'refund.lookup') {
+        // 退款投递不重复携带“查无订单”播报，保持 not_found 语义
+        status = 'not_found';
+      } else {
+        // 桌面端只对带订单的 found 结果播报备注，因此查无订单时提交一条
+        // 零商品的合成订单，通过卖家备注触发“单号不在系统中”播报
+        status = 'found';
+        orders = [{
+          trackingNumber: delivery.trackingNumber,
+          orderId: delivery.trackingNumber,
+          buyerMessage: '',
+          sellerMemo: provider.notFoundMessage || '单号不在系统中，请核实后再发',
+          totalItemCount: 0,
+          products: [],
+          refundState: 'none',
+          refundReason: ''
+        }];
+      }
     } finally {
       clearTimeout(timeout);
     }

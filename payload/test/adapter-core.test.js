@@ -41,9 +41,20 @@ test('createResult 找到订单时提交 found 与订单', async () => {
   assert.equal(result.revision, 1);
 });
 
-test('createResult 明确查无订单时提交 not_found', async () => {
+test('createResult 明确查无订单时通过合成订单携带播报文案', async () => {
   const notFound = { ...provider, lookup: async () => null };
   const result = await createResult(delivery, notFound);
+  assert.equal(result.status, 'found');
+  assert.equal(result.orders.length, 1);
+  assert.equal(result.orders[0].totalItemCount, 0);
+  assert.equal(result.orders[0].sellerMemo, '单号不在系统中，请核实后再发');
+  assert.equal(result.orders[0].refundState, 'none');
+});
+
+test('createResult 退款投递查无订单时保持 not_found 不重复播报', async () => {
+  const notFound = { ...provider, lookup: async () => null };
+  const refundDelivery = { ...delivery, capability: 'refund.lookup' };
+  const result = await createResult(refundDelivery, notFound);
   assert.equal(result.status, 'not_found');
   assert.deepEqual(result.orders, []);
 });
