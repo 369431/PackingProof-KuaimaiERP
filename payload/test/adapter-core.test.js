@@ -47,7 +47,7 @@ test('createResult 明确查无订单时通过合成订单携带播报文案', a
   assert.equal(result.status, 'found');
   assert.equal(result.orders.length, 1);
   assert.equal(result.orders[0].totalItemCount, 0);
-  assert.equal(result.orders[0].sellerMemo, '单号不在系统中，请核实后再发');
+  assert.equal(result.orders[0].sellerMemo, '此单号不在系统中，请核实再发');
   assert.equal(result.orders[0].refundState, 'none');
 });
 

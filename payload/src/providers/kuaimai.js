@@ -99,15 +99,16 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
     name: 'kuaimai',
     providerId,
     capabilities: ['order.lookup', 'refund.lookup'],
-    notFoundMessage: '单号不在系统中，请核实后再发',
+    notFoundMessage: '此单号不在系统中，请核实再发',
     async lookup(trackingNumber, { signal } = {}) {
       return client.lookup(trackingNumber, signal);
     },
-    // 兼容上游模式：把已知退款订单转成软件原生订单推送格式（触发原生警报播报）
+    // 兼容上游模式：把全部已找到订单（含查无订单合成件）转成软件原生订单推送格式。
+    // 原生渠道使用适配器自己的逐行商品格式，并可靠触发备注播报（含"此单号不在系统中"）；
+    // 退款订单额外携带退款状态，触发桌面端原生"打印后退款"警报。
     pushNativeOrder(order) {
       if (!refundCompat) return null;
       const refundSignal = ['requested', 'processing', 'refunded', 'returned'].includes(order.refundState);
-      if (!refundSignal) return null;
       const productInfo = (order.products || [])
         .map(product => product.quantity > 1 ? `${product.name} ×${product.quantity}` : product.name)
         .join('\n');
@@ -118,11 +119,11 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
         totalItemCount: order.totalItemCount || 0,
         buyerMessage: order.buyerMessage || '',
         // 件数并入备注，保证原生渠道也能播报到件数
-        sellerMemo: order.sellerMemo
-          ? `${order.sellerMemo}，共 ${order.totalItemCount} 件商品`
-          : `共 ${order.totalItemCount} 件商品`,
-        refundStatus: order.refundReason || '',
-        isPrintedRefund: true,
+        sellerMemo: refundSignal
+          ? (order.sellerMemo ? `${order.sellerMemo}，共 ${order.totalItemCount} 件商品` : `共 ${order.totalItemCount} 件商品`)
+          : (order.sellerMemo || ''),
+        refundStatus: refundSignal ? (order.refundReason || '') : '',
+        isPrintedRefund: refundSignal,
         isTest: false
       };
     }
