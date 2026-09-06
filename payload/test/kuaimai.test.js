@@ -32,9 +32,9 @@ test('优先使用快麦商家编码，已知退款状态提交真实状态（�
     { outerSkuId: '7255-女款', title: '很长的商品标题', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT2');
   assert.equal(order.products[0].name, '7255-女款');
-  // 兼容模式（默认）：已知状态提交真实状态，触发上游原生退款警报；备注保留中文文案
+  // 兼容模式（默认）：已知状态提交真实状态，触发上游原生退款警报；备注播报状态与件数
   assert.equal(order.refundState, 'requested');
-  assert.equal(order.sellerMemo, '订单申请退款中');
+  assert.equal(order.sellerMemo, '订单申请退款中，共 1 件商品');
   assert.equal(order.refundReason, 'WAIT_SELLER_AGREE');
 });
 
@@ -43,7 +43,7 @@ test('增强模式（refundCompat=false）已知退款提交 none 并带备注�
     { outerSkuId: '7255-女款', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT2B', { refundCompat: false });
   assert.equal(order.refundState, 'none');
-  assert.equal(order.sellerMemo, '订单申请退款中');
+  assert.equal(order.sellerMemo, '订单申请退款中，共 1 件商品');
 });
 
 test('trade 级 status 是发货状态，不得误判为退款状态', () => {
@@ -52,7 +52,7 @@ test('trade 级 status 是发货状态，不得误判为退款状态', () => {
     { outerSkuId: '9672-灰色S', num: 1, refundStatus: 'WAIT_SELLER_AGREE' }
   ] }] }, 'YT3');
   assert.equal(order.refundState, 'requested');
-  assert.equal(order.sellerMemo, '订单申请退款中');
+  assert.equal(order.sellerMemo, '订单申请退款中，共 1 件商品');
 });
 
 test('发货状态 fxg_1 且无退款标记时返回无退款', () => {
@@ -63,22 +63,26 @@ test('发货状态 fxg_1 且无退款标记时返回无退款', () => {
   assert.equal(order.refundReason, '');
 });
 
-test('原始卖家备注与买家留言不回传，退款仅播状态文案', () => {
+test('退款订单播报状态与件数，买家留言正常回传', () => {
   const order = mapTradeList({ list: [{ tid: 'T5', isRefund: 1, seller_memo: '尽快发货', buyer_message: '礼品盒包装', orders: [
     { outerSkuId: '9672-灰色S', num: 1, refundStatus: 'SUCCESS' }
   ] }] }, 'YT5');
   assert.equal(order.refundState, 'refunded');
-  assert.equal(order.sellerMemo, '订单已退款');
-  assert.equal(order.buyerMessage, '');
+  // 退款只播状态与件数，原始卖家备注不进入播报
+  assert.equal(order.sellerMemo, '订单已退款，共 1 件商品');
+  // 买家留言正常回传播报
+  assert.equal(order.buyerMessage, '礼品盒包装');
 });
 
-test('无退款订单不携带任何备注或留言', () => {
+test('无退款订单不播报卖家备注，买家留言与件数正常', () => {
   const order = mapTradeList({ list: [{ tid: 'T6', seller_memo: '轻拿轻放', buyer_message: '求好评', orders: [
     { outerSkuId: '7268-白色S', num: 2 }
   ] }] }, 'YT6');
   assert.equal(order.refundState, 'none');
+  // 非退款订单的原始卖家备注不进入播报（按使用者要求）
   assert.equal(order.sellerMemo, '');
-  assert.equal(order.buyerMessage, '');
+  assert.equal(order.buyerMessage, '求好评');
+  assert.equal(order.totalItemCount, 2);
 });
 
 test('空列表返回未找到', () => {

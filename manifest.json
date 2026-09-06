@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "id": "369431.kuaimai-erp",
   "name": "PackingProof 快麦 ERP 适配器",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "external-adapter",
   "minPackingProofVersion": "0.0.63",
   "payload": "payload/start.cmd"

@@ -117,9 +117,8 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
         orderId: order.orderId,
         productInfo,
         totalItemCount: order.totalItemCount || 0,
-        buyerMessage: '',
-        // 退款订单只播退款状态文案（如"订单已退款"），不再附加件数；
-        // 件数由桌面端按 totalItemCount 播报"共 N 件商品"（仅非退款订单）
+        buyerMessage: order.buyerMessage || '',
+        // 退款订单的备注已含状态文案与件数（见 mapTradeList）；非退款订单备注为空时不播报
         sellerMemo: order.sellerMemo || '',
         refundStatus: refundSignal ? (order.refundReason || '') : '',
         isPrintedRefund: refundSignal,
@@ -138,8 +137,8 @@ export function mapTradeList(payload, trackingNumber, { refundCompat = true } = 
   const rawRefundStatus = firstString(trade, ['refund_status', 'refundStatus'])
     || firstString(items.find(item => firstString(item, ['refund_status', 'refundStatus'])), ['refund_status', 'refundStatus']);
   const refundState = mapRefundState(trade, items, rawRefundStatus);
-  // 退款信息通过卖家备注携带中文播报文案；
-  // 语音播报只保留件数与退款状态：不回传原始买家留言/卖家备注，避免杂项播报。
+  // 退款信息通过卖家备注携带中文播报文案，退款订单附报件数；
+  // 买家留言正常回传播报；非退款订单的原始卖家备注不播报（按使用者要求）。
   // compat 模式：已知状态提交真实状态（触发桌面端原生退款警报），增强模式提交 none
   let sellerMemo = '';
   let submittedRefundState = refundState;
@@ -148,13 +147,15 @@ export function mapTradeList(payload, trackingNumber, { refundCompat = true } = 
     sellerMemo = '订单退款状态未知，请核实再发';
   } else if (refundState !== 'none') {
     submittedRefundState = refundCompat ? refundState : 'none';
-    sellerMemo = RefundStateDisplay[refundState] || `退款状态：${refundState}`;
+    const stateText = RefundStateDisplay[refundState] || `退款状态：${refundState}`;
+    const itemCount = products.reduce((sum, product) => sum + product.quantity, 0);
+    sellerMemo = itemCount > 0 ? `${stateText}，共 ${itemCount} 件商品` : stateText;
   }
 
   return {
     trackingNumber,
     orderId: firstString(trade, ['tid', 'order_id', 'trade_id']) || firstString(items[0], ['tid']) || '',
-    buyerMessage: '',
+    buyerMessage: firstString(trade, ['buyer_message', 'buyer_memo']) || firstString(items[0], ['buyer_message', 'buyer_memo']) || '',
     sellerMemo,
     totalItemCount: products.reduce((sum, product) => sum + product.quantity, 0),
     products,
