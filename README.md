@@ -25,7 +25,7 @@
 
 ## 安装（PackingProof 扩展）
 
-1. 在 GitHub Release 下载 `369431.kuaimai-erp-1.0.2.ppext`，或从 [PackingProof 扩展市场](https://github.com/PackingProof/PackingProof-Extensions) 安装
+1. 在 GitHub Release 下载 `369431.kuaimai-erp-1.0.3.ppext`，或从 [PackingProof 扩展市场](https://github.com/PackingProof/PackingProof-Extensions) 安装
 2. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
 3. 导入并安装扩展；外部适配器需要手动启动（`payload/start.cmd`）
 4. 首次运行时，在 PackingProof 弹出的授权窗口中批准适配器

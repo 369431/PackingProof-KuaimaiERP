@@ -24,7 +24,7 @@ const identity = {
     || `kuaimai-${randomBytes(16).toString('hex')}`,
   providerId: provider.providerId,
   displayName: 'PackingProof 快麦 ERP 适配器',
-  version: '1.0.2',
+  version: '1.0.3',
   source: 'https://github.com/369431/PackingProof-KuaimaiERP',
   requestedPermissions: ['scan-tasks.read', 'scan-results.write', 'orders.write'],
   requestedCapabilities: provider.capabilities
