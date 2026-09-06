@@ -99,15 +99,16 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
     name: 'kuaimai',
     providerId,
     capabilities: ['order.lookup', 'refund.lookup'],
-    notFoundMessage: '单号不在系统中，请核实后再发',
+    notFoundMessage: '此单号不在系统中，请核实再发',
     async lookup(trackingNumber, { signal } = {}) {
       return client.lookup(trackingNumber, signal);
     },
-    // 兼容上游模式：把已知退款订单转成软件原生订单推送格式（触发原生警报播报）
+    // 兼容上游模式：把全部已找到订单（含查无订单合成件）转成软件原生订单推送格式。
+    // 原生渠道使用适配器自己的逐行商品格式，并可靠触发备注播报（含"此单号不在系统中"）；
+    // 退款订单额外携带退款状态，触发桌面端原生"打印后退款"警报。
     pushNativeOrder(order) {
       if (!refundCompat) return null;
       const refundSignal = ['requested', 'processing', 'refunded', 'returned'].includes(order.refundState);
-      if (!refundSignal) return null;
       const productInfo = (order.products || [])
         .map(product => product.quantity > 1 ? `${product.name} ×${product.quantity}` : product.name)
         .join('\n');
@@ -116,13 +117,12 @@ export function createKuaimaiProvider(options, providerId = '369431.kuaimai-erp'
         orderId: order.orderId,
         productInfo,
         totalItemCount: order.totalItemCount || 0,
-        buyerMessage: order.buyerMessage || '',
-        // 件数并入备注，保证原生渠道也能播报到件数
-        sellerMemo: order.sellerMemo
-          ? `${order.sellerMemo}，共 ${order.totalItemCount} 件商品`
-          : `共 ${order.totalItemCount} 件商品`,
-        refundStatus: order.refundReason || '',
-        isPrintedRefund: true,
+        buyerMessage: '',
+        // 退款订单只播退款状态文案（如"订单已退款"），不再附加件数；
+        // 件数由桌面端按 totalItemCount 播报"共 N 件商品"（仅非退款订单）
+        sellerMemo: order.sellerMemo || '',
+        refundStatus: refundSignal ? (order.refundReason || '') : '',
+        isPrintedRefund: refundSignal,
         isTest: false
       };
     }
@@ -139,22 +139,22 @@ export function mapTradeList(payload, trackingNumber, { refundCompat = true } = 
     || firstString(items.find(item => firstString(item, ['refund_status', 'refundStatus'])), ['refund_status', 'refundStatus']);
   const refundState = mapRefundState(trade, items, rawRefundStatus);
   // 退款信息通过卖家备注携带中文播报文案；
+  // 语音播报只保留件数与退款状态：不回传原始买家留言/卖家备注，避免杂项播报。
   // compat 模式：已知状态提交真实状态（触发桌面端原生退款警报），增强模式提交 none
-  let sellerMemo = firstString(trade, ['seller_memo', 'seller_remark'])
-    || firstString(items[0], ['seller_memo', 'seller_remark']) || '';
+  let sellerMemo = '';
   let submittedRefundState = refundState;
   if (refundState === 'unknown') {
     submittedRefundState = 'unknown';
-    sellerMemo = appendMemo(sellerMemo, '订单退款状态未知，请核实后再发');
+    sellerMemo = '订单退款状态未知，请核实再发';
   } else if (refundState !== 'none') {
     submittedRefundState = refundCompat ? refundState : 'none';
-    sellerMemo = appendMemo(sellerMemo, RefundStateDisplay[refundState] || `退款状态：${refundState}`);
+    sellerMemo = RefundStateDisplay[refundState] || `退款状态：${refundState}`;
   }
 
   return {
     trackingNumber,
     orderId: firstString(trade, ['tid', 'order_id', 'trade_id']) || firstString(items[0], ['tid']) || '',
-    buyerMessage: firstString(trade, ['buyer_message', 'buyer_memo']) || firstString(items[0], ['buyer_message', 'buyer_memo']) || '',
+    buyerMessage: '',
     sellerMemo,
     totalItemCount: products.reduce((sum, product) => sum + product.quantity, 0),
     products,
@@ -170,11 +170,6 @@ const RefundStateDisplay = {
   returned: '订单已退货',
   rejected: '订单退款已拒绝'
 };
-
-function appendMemo(existing, warning) {
-  if (!existing) return warning;
-  return `${existing}；${warning}`;
-}
 
 function mapProduct(item) {
   const sku = firstString(item, ['outerSkuId', 'sysOuterId', 'outer_sku_id', 'sku']) || '';

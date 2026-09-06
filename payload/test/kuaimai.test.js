@@ -21,9 +21,10 @@ test('映射商品数量、退款和过滤包装 SKU', () => {
   assert.equal(order.totalItemCount, 2);
   assert.equal(order.products.length, 1);
   assert.equal(order.products[0].name, '7107-黑色M');
-  // 只有 isRefund 标记、无具体退款状态：unknown + 备注播报“请核实后再发”
+  // 只有 isRefund 标记、无具体退款状态：unknown + 播报“请核实再发”
   assert.equal(order.refundState, 'unknown');
-  assert.equal(order.sellerMemo, '订单退款状态未知，请核实后再发');
+  assert.equal(order.sellerMemo, '订单退款状态未知，请核实再发');
+  assert.equal(order.buyerMessage, '');
 });
 
 test('优先使用快麦商家编码，已知退款状态提交真实状态（兼容上游）', () => {
@@ -62,11 +63,29 @@ test('发货状态 fxg_1 且无退款标记时返回无退款', () => {
   assert.equal(order.refundReason, '');
 });
 
+test('原始卖家备注与买家留言不回传，退款仅播状态文案', () => {
+  const order = mapTradeList({ list: [{ tid: 'T5', isRefund: 1, seller_memo: '尽快发货', buyer_message: '礼品盒包装', orders: [
+    { outerSkuId: '9672-灰色S', num: 1, refundStatus: 'SUCCESS' }
+  ] }] }, 'YT5');
+  assert.equal(order.refundState, 'refunded');
+  assert.equal(order.sellerMemo, '订单已退款');
+  assert.equal(order.buyerMessage, '');
+});
+
+test('无退款订单不携带任何备注或留言', () => {
+  const order = mapTradeList({ list: [{ tid: 'T6', seller_memo: '轻拿轻放', buyer_message: '求好评', orders: [
+    { outerSkuId: '7268-白色S', num: 2 }
+  ] }] }, 'YT6');
+  assert.equal(order.refundState, 'none');
+  assert.equal(order.sellerMemo, '');
+  assert.equal(order.buyerMessage, '');
+});
+
 test('空列表返回未找到', () => {
   assert.equal(mapTradeList({ list: [] }, 'YT1'), null);
 });
 
-test('createKuaimaiProvider.pushNativeOrder 退款订单生成原生推送（含件数备注）', () => {
+test('createKuaimaiProvider.pushNativeOrder 退款订单生成原生推送（仅播退款状态）', () => {
   const provider = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't' });
   const order = {
     trackingNumber: 'YT1',
@@ -81,13 +100,51 @@ test('createKuaimaiProvider.pushNativeOrder 退款订单生成原生推送（含
   const push = provider.pushNativeOrder(order);
   assert.equal(push.isPrintedRefund, true);
   assert.equal(push.refundStatus, 'WAIT_SELLER_AGREE');
-  assert.equal(push.sellerMemo, '订单申请退款中，共 3 件商品');
+  // 退款订单只播退款状态，不附加件数
+  assert.equal(push.sellerMemo, '订单申请退款中');
   assert.equal(push.productInfo, '9672-灰色S\n7268-橘色M ×2');
   assert.equal(push.totalItemCount, 3);
 });
 
-test('createKuaimaiProvider.pushNativeOrder 无退款或增强模式不推送', () => {
+test('createKuaimaiProvider.pushNativeOrder 全量推送：非退款订单带逐行商品且无退款字段', () => {
   const provider = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't' });
+  const order = {
+    trackingNumber: 'YT1',
+    orderId: 'T1',
+    totalItemCount: 4,
+    buyerMessage: '',
+    sellerMemo: '',
+    refundState: 'none',
+    refundReason: '',
+    products: [{ name: '7267-黑色S', quantity: 1 }, { name: '7267-灰色S', quantity: 1 }]
+  };
+  const push = provider.pushNativeOrder(order);
+  assert.equal(push.isPrintedRefund, false);
+  assert.equal(push.refundStatus, '');
+  assert.equal(push.sellerMemo, '');
+  assert.equal(push.productInfo, '7267-黑色S\n7267-灰色S');
+  assert.equal(push.totalItemCount, 4);
+});
+
+test('createKuaimaiProvider.pushNativeOrder 查无订单合成件仅携带播报备注', () => {
+  const provider = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't' });
+  const synthetic = {
+    trackingNumber: 'YT2',
+    orderId: 'YT2',
+    totalItemCount: 0,
+    buyerMessage: '',
+    sellerMemo: '此单号不在系统中，请核实再发',
+    refundState: 'none',
+    refundReason: '',
+    products: []
+  };
+  const push = provider.pushNativeOrder(synthetic);
+  assert.equal(push.isPrintedRefund, false);
+  assert.equal(push.productInfo, '');
+  assert.equal(push.sellerMemo, '此单号不在系统中，请核实再发');
+});
+
+test('createKuaimaiProvider.pushNativeOrder 增强模式不推送', () => {
   const enhanced = createKuaimaiProvider({ appKey: 'k', appSecret: 's', session: 't', refundCompat: false });
   const order = {
     trackingNumber: 'YT1',
@@ -98,8 +155,6 @@ test('createKuaimaiProvider.pushNativeOrder 无退款或增强模式不推送', 
     refundReason: 'WAIT_SELLER_AGREE',
     products: [{ name: 'A', quantity: 1 }]
   };
-  const noRefund = { ...order, refundState: 'none' };
-  assert.equal(provider.pushNativeOrder(noRefund), null);
   assert.equal(enhanced.pushNativeOrder(order), null);
 });
 
